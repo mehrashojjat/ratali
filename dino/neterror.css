@@ -338,7 +338,6 @@ html[dir='rtl'].offline .icon-offline {
 
 .offline.inverted {
   background-color: #fff;
-  filter: invert(1);
 }
 
 .offline.inverted body {
@@ -645,7 +644,6 @@ html[dir='rtl'].offline .icon-offline {
   }
 
   .offline .runner-canvas {
-    filter: invert(1);
   }
 
   .offline.inverted {
