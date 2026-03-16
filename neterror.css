@@ -371,7 +371,7 @@ html[dir='rtl'].offline .icon-offline {
 }
 
 .offline .runner-container:focus-visible {
-  outline: 3px solid var(--google-blue-300);
+  outline: none;
 }
 
 .offline .runner-canvas {
