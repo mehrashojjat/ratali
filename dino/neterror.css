@@ -350,6 +350,7 @@ html[dir='rtl'].offline .icon-offline {
   line-height: 1.55;
   margin: 0 auto;
   max-width: 600px;
+  min-height: 200px;
   padding-top: 100px;
   position: relative;
   width: 100%;
@@ -419,23 +420,73 @@ html[dir='rtl'].offline .icon-offline {
   user-select: none;
 }
 
+/* Game footer: slow-speed toggle + mobile control buttons */
+#game-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 8px 0 0;
+  box-sizing: border-box;
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+#mobile-controls {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.mobile-btn {
+  width: 88px;
+  height: 88px;
+  font-size: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--google-gray-300);
+  background: var(--google-gray-50);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, background 0.1s ease;
+  line-height: 1;
+  padding: 0;
+  outline: none;
+}
+
+.mobile-btn:active {
+  background: var(--google-gray-100);
+  transform: scale(0.92);
+}
+
 /* Custom toggle */
 .slow-speed-option {
   align-items: center;
-  background: var(--google-gray-50);
-  border-radius: 24px/50%;
-  bottom: 0;
-  color: var(--error-code-color);
+  background: var(--google-gray-100, #f1f3f4);
+  border: 1.5px solid var(--google-gray-300);
+  border-radius: 12px;
+  color: #1a1a1a;
   display: inline-flex;
-  font-size: 1em;
-  left: 0;
-  line-height: 1.1em;
-  margin: 5px auto;
-  padding: 2px 12px 3px 20px;
-  position: absolute;
-  right: 0;
+  font-size: 0.88em;
+  font-weight: 500;
+  gap: 4px;
+  line-height: 1.4;
+  margin: 10px auto;
+  padding: 10px 18px;
+  position: relative;
   width: max-content;
-  z-index: 999;
+  white-space: nowrap;
 }
 
 .slow-speed-option.hidden {
@@ -564,6 +615,7 @@ html[dir='rtl'].offline .icon-offline {
 @media (max-width: 360px) and (max-height: 480px) {
   .offline .interstitial-wrapper {
     padding-top: 60px;
+    min-height: 170px;
   }
 
   .offline .runner-container {
@@ -661,11 +713,6 @@ html[dir='rtl'].offline .icon-offline {
 
   #suggestions-list a {
     color: var(--link-color);
-  }
-
-  .slow-speed-option {
-    background: var(--google-gray-800);
-    color: var(--google-gray-100);
   }
 
   .slow-speed-option .slow-speed-toggle::before,

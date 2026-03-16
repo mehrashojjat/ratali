@@ -121,6 +121,7 @@ enum RunnerEvents {
   ANIM_END = 'webkitAnimationEnd',
   CLICK = 'click',
   KEYDOWN = 'keydown',
+  KEYPRESS = 'keypress',
   KEYUP = 'keyup',
   POINTERDOWN = 'pointerdown',
   POINTERUP = 'pointerup',
@@ -934,6 +935,7 @@ export class Runner implements ImageSpriteProvider, GameStateProvider,
   handleEvent(e: Event) {
     switch (e.type) {
       case RunnerEvents.KEYDOWN:
+      case RunnerEvents.KEYPRESS:
       case RunnerEvents.TOUCHSTART:
       case RunnerEvents.POINTERDOWN:
         this.onKeyDown(e);
@@ -1045,6 +1047,7 @@ export class Runner implements ImageSpriteProvider, GameStateProvider,
 
     // Keys.
     document.addEventListener(RunnerEvents.KEYDOWN, this);
+    document.addEventListener(RunnerEvents.KEYPRESS, this);
     document.addEventListener(RunnerEvents.KEYUP, this);
 
     // Touch / pointer.
@@ -1067,64 +1070,72 @@ export class Runner implements ImageSpriteProvider, GameStateProvider,
       e.preventDefault();
     }
 
-    if (this.isCanvasInView()) {
-      // Allow toggling of speed toggle.
-      if (e instanceof KeyboardEvent &&
-          runnerKeycodes.jump.includes(e.keyCode) &&
-          e.target === this.slowSpeedCheckbox) {
-        return;
-      }
+    if (this.crashed && e instanceof KeyboardEvent) {
+      e.preventDefault();
+      this.handleGameOverClicks(e);
+      return;
+    }
 
-      if (!this.crashed && !this.paused) {
-        // For a11y, screen reader activation.
-        const isMobileMouseInput = IS_MOBILE && e instanceof PointerEvent &&
-            e.type === RunnerEvents.POINTERDOWN && e.pointerType === 'mouse' &&
-            (e.target === this.containerEl ||
-             (IS_IOS &&
-              (e.target === this.touchController || e.target === this.canvas)));
-        assert(this.tRex);
+    if (!this.isCanvasInView()) {
+      return;
+    }
 
-        if ((e instanceof KeyboardEvent &&
-             runnerKeycodes.jump.includes(e.keyCode)) ||
-            e.type === RunnerEvents.TOUCHSTART || isMobileMouseInput) {
-          e.preventDefault();
-          // Starting the game for the first time.
-          if (!this.playing) {
-            // Started by touch so create a touch controller.
-            if (!this.touchController && e.type === RunnerEvents.TOUCHSTART) {
-              this.createTouchController();
-            }
+    // Allow toggling of speed toggle.
+    if (e instanceof KeyboardEvent &&
+        runnerKeycodes.jump.includes(e.keyCode) &&
+        e.target === this.slowSpeedCheckbox) {
+      return;
+    }
 
-            if (isMobileMouseInput) {
-              this.handleCanvasKeyPress(e);
-            }
-            this.loadSounds();
-            this.setPlayStatus(true);
-            this.update();
-            if (window.errorPageController) {
-              window.errorPageController.trackEasterEgg();
-            }
+    if (!this.crashed && !this.paused) {
+      // For a11y, screen reader activation.
+      const isMobileMouseInput = IS_MOBILE && e instanceof PointerEvent &&
+          e.type === RunnerEvents.POINTERDOWN && e.pointerType === 'mouse' &&
+          (e.target === this.containerEl ||
+           (IS_IOS &&
+            (e.target === this.touchController || e.target === this.canvas)));
+      assert(this.tRex);
+
+      if ((e instanceof KeyboardEvent &&
+           runnerKeycodes.jump.includes(e.keyCode)) ||
+          e.type === RunnerEvents.TOUCHSTART || isMobileMouseInput) {
+        e.preventDefault();
+        // Starting the game for the first time.
+        if (!this.playing) {
+          // Started by touch so create a touch controller.
+          if (!this.touchController && e.type === RunnerEvents.TOUCHSTART) {
+            this.createTouchController();
           }
-          // Start jump.
-          if (!this.tRex.jumping && !this.tRex.ducking) {
-            if (this.hasAudioCuesInternal) {
-              this.getGeneratedSoundFx().cancelFootSteps();
-            } else {
-              this.playSound(this.soundFx.BUTTON_PRESS);
-            }
-            this.tRex.startJump(this.currentSpeed);
+
+          if (isMobileMouseInput) {
+            this.handleCanvasKeyPress(e);
           }
-        } else if (
-            this.playing && e instanceof KeyboardEvent &&
-            runnerKeycodes.duck.includes(e.keyCode)) {
-          e.preventDefault();
-          if (this.tRex.jumping) {
-            // Speed drop, activated only when jump key is not pressed.
-            this.tRex.setSpeedDrop();
-          } else if (!this.tRex.jumping && !this.tRex.ducking) {
-            // Duck.
-            this.tRex.setDuck(true);
+          this.loadSounds();
+          this.setPlayStatus(true);
+          this.update();
+          if (window.errorPageController) {
+            window.errorPageController.trackEasterEgg();
           }
+        }
+        // Start jump.
+        if (!this.tRex.jumping && !this.tRex.ducking) {
+          if (this.hasAudioCuesInternal) {
+            this.getGeneratedSoundFx().cancelFootSteps();
+          } else {
+            this.playSound(this.soundFx.BUTTON_PRESS);
+          }
+          this.tRex.startJump(this.currentSpeed);
+        }
+      } else if (
+          this.playing && e instanceof KeyboardEvent &&
+          runnerKeycodes.duck.includes(e.keyCode)) {
+        e.preventDefault();
+        if (this.tRex.jumping) {
+          // Speed drop, activated only when jump key is not pressed.
+          this.tRex.setSpeedDrop();
+        } else if (!this.tRex.jumping && !this.tRex.ducking) {
+          // Duck.
+          this.tRex.setDuck(true);
         }
       }
     }
@@ -1145,14 +1156,7 @@ export class Runner implements ImageSpriteProvider, GameStateProvider,
       this.tRex.speedDrop = false;
       this.tRex.setDuck(false);
     } else if (this.crashed) {
-      // Check that enough time has elapsed before allowing jump key to restart.
-      const deltaTime = getTimeStamp() - this.time;
-
-      if (this.isCanvasInView() &&
-          (runnerKeycodes.restart.includes(keyCode) ||
-           this.isLeftClickOnCanvas(e) ||
-           (deltaTime >= this.config.gameoverClearTime &&
-            runnerKeycodes.jump.includes(keyCode)))) {
+      if (e instanceof KeyboardEvent || this.isLeftClickOnCanvas(e)) {
         this.handleGameOverClicks(e);
       }
     } else if (this.paused && isjumpKey) {

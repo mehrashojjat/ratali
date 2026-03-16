@@ -2557,7 +2557,7 @@ var Runner = class _Runner {
     this.a11yStatusEl.setAttribute("aria-live", "assertive");
     this.a11yStatusEl.textContent = "";
     this.slowSpeedCheckboxLabel = document.createElement("label");
-    this.slowSpeedCheckboxLabel.className = "slow-speed-option hidden";
+    this.slowSpeedCheckboxLabel.className = "slow-speed-option";
     this.slowSpeedCheckboxLabel.textContent = getA11yString("dinoGameA11ySpeedToggle" /* SPEED_LABEL */);
     this.slowSpeedCheckbox = document.createElement("input");
     this.slowSpeedCheckbox.setAttribute("type", "checkbox");
@@ -2566,7 +2566,6 @@ var Runner = class _Runner {
       getA11yString("dinoGameA11ySpeedToggle" /* SPEED_LABEL */)
     );
     this.slowSpeedCheckbox.setAttribute("tabindex", "0");
-    this.slowSpeedCheckbox.setAttribute("checked", "checked");
     this.slowSpeedToggleEl = document.createElement("span");
     this.slowSpeedToggleEl.className = "slow-speed-toggle";
     this.slowSpeedCheckboxLabel.appendChild(this.slowSpeedCheckbox);
@@ -2902,6 +2901,7 @@ var Runner = class _Runner {
   handleEvent(e) {
     switch (e.type) {
       case "keydown" /* KEYDOWN */:
+      case "keypress" /* KEYPRESS */:
       case "touchstart" /* TOUCHSTART */:
       case "pointerdown" /* POINTERDOWN */:
         this.onKeyDown(e);
@@ -2965,13 +2965,9 @@ var Runner = class _Runner {
    * From focus event or when audio cues are activated.
    */
   showSpeedToggle(e) {
-    const isFocusEvent = e && e.type === "focus";
-    if (this.hasAudioCuesInternal || isFocusEvent) {
-      assert(this.slowSpeedCheckboxLabel);
-      this.slowSpeedCheckboxLabel.classList.toggle(
-        HIDDEN_CLASS,
-        isFocusEvent ? false : !this.crashed
-      );
+    // Always keep the speed toggle visible
+    if (this.slowSpeedCheckboxLabel) {
+      this.slowSpeedCheckboxLabel.classList.remove(HIDDEN_CLASS);
     }
   }
   /**
@@ -3010,6 +3006,7 @@ var Runner = class _Runner {
       this.preventScrolling.bind(this)
     );
     document.addEventListener("keydown" /* KEYDOWN */, this);
+    document.addEventListener("keypress" /* KEYPRESS */, this);
     document.addEventListener("keyup" /* KEYUP */, this);
     this.containerEl.addEventListener("touchstart" /* TOUCHSTART */, this);
     document.addEventListener("pointerdown" /* POINTERDOWN */, this);
@@ -3025,44 +3022,50 @@ var Runner = class _Runner {
     if (IS_MOBILE && this.playing) {
       e.preventDefault();
     }
-    if (this.isCanvasInView()) {
-      if (e instanceof KeyboardEvent && runnerKeycodes.jump.includes(e.keyCode) && e.target === this.slowSpeedCheckbox) {
-        return;
-      }
-      if (!this.crashed && !this.paused) {
-        const isMobileMouseInput = IS_MOBILE && e instanceof PointerEvent && e.type === "pointerdown" /* POINTERDOWN */ && e.pointerType === "mouse" && (e.target === this.containerEl || IS_IOS && (e.target === this.touchController || e.target === this.canvas));
-        assert(this.tRex);
-        if (e instanceof KeyboardEvent && runnerKeycodes.jump.includes(e.keyCode) || e.type === "touchstart" /* TOUCHSTART */ || isMobileMouseInput) {
-          e.preventDefault();
-          if (!this.playing) {
-            if (!this.touchController && e.type === "touchstart" /* TOUCHSTART */) {
-              this.createTouchController();
-            }
-            if (isMobileMouseInput) {
-              this.handleCanvasKeyPress(e);
-            }
-            this.loadSounds();
-            this.setPlayStatus(true);
-            this.update();
-            if (window.errorPageController) {
-              window.errorPageController.trackEasterEgg();
-            }
+    if (this.crashed && e instanceof KeyboardEvent) {
+      e.preventDefault();
+      this.handleGameOverClicks(e);
+      return;
+    }
+    if (!this.isCanvasInView()) {
+      return;
+    }
+    if (e instanceof KeyboardEvent && runnerKeycodes.jump.includes(e.keyCode) && e.target === this.slowSpeedCheckbox) {
+      return;
+    }
+    if (!this.crashed && !this.paused) {
+      const isMobileMouseInput = IS_MOBILE && e instanceof PointerEvent && e.type === "pointerdown" /* POINTERDOWN */ && e.pointerType === "mouse" && (e.target === this.containerEl || IS_IOS && (e.target === this.touchController || e.target === this.canvas));
+      assert(this.tRex);
+      if (e instanceof KeyboardEvent && runnerKeycodes.jump.includes(e.keyCode) || e.type === "touchstart" /* TOUCHSTART */ || isMobileMouseInput) {
+        e.preventDefault();
+        if (!this.playing) {
+          if (!this.touchController && e.type === "touchstart" /* TOUCHSTART */) {
+            this.createTouchController();
           }
-          if (!this.tRex.jumping && !this.tRex.ducking) {
-            if (this.hasAudioCuesInternal) {
-              this.getGeneratedSoundFx().cancelFootSteps();
-            } else {
-              this.playSound(this.soundFx.BUTTON_PRESS);
-            }
-            this.tRex.startJump(this.currentSpeed);
+          if (isMobileMouseInput) {
+            this.handleCanvasKeyPress(e);
           }
-        } else if (this.playing && e instanceof KeyboardEvent && runnerKeycodes.duck.includes(e.keyCode)) {
-          e.preventDefault();
-          if (this.tRex.jumping) {
-            this.tRex.setSpeedDrop();
-          } else if (!this.tRex.jumping && !this.tRex.ducking) {
-            this.tRex.setDuck(true);
+          this.loadSounds();
+          this.setPlayStatus(true);
+          this.update();
+          if (window.errorPageController) {
+            window.errorPageController.trackEasterEgg();
           }
+        }
+        if (!this.tRex.jumping && !this.tRex.ducking) {
+          if (this.hasAudioCuesInternal) {
+            this.getGeneratedSoundFx().cancelFootSteps();
+          } else {
+            this.playSound(this.soundFx.BUTTON_PRESS);
+          }
+          this.tRex.startJump(this.currentSpeed);
+        }
+      } else if (this.playing && e instanceof KeyboardEvent && runnerKeycodes.duck.includes(e.keyCode)) {
+        e.preventDefault();
+        if (this.tRex.jumping) {
+          this.tRex.setSpeedDrop();
+        } else if (!this.tRex.jumping && !this.tRex.ducking) {
+          this.tRex.setDuck(true);
         }
       }
     }
@@ -3080,8 +3083,7 @@ var Runner = class _Runner {
       this.tRex.speedDrop = false;
       this.tRex.setDuck(false);
     } else if (this.crashed) {
-      const deltaTime = getTimeStamp() - this.time;
-      if (this.isCanvasInView() && (runnerKeycodes.restart.includes(keyCode) || this.isLeftClickOnCanvas(e) || deltaTime >= this.config.gameoverClearTime && runnerKeycodes.jump.includes(keyCode))) {
+      if (e instanceof KeyboardEvent || this.isLeftClickOnCanvas(e)) {
         this.handleGameOverClicks(e);
       }
     } else if (this.paused && isjumpKey) {

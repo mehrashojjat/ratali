@@ -49,6 +49,12 @@
   <div class="interstitial-wrapper">
     <div class="icon icon-offline"></div>
   </div>
+  <div id="game-footer">
+    <div id="mobile-controls">
+      <button id="btn-down" class="mobile-btn" aria-label="Duck">⬇️</button>
+      <button id="btn-up" class="mobile-btn" aria-label="Jump">⬆️</button>
+    </div>
+  </div>
   <div id="offline-resources">
     <img id="offline-resources-1x" src="images/default_100_percent/offline/100-offline-sprite.png">
     <img id="offline-resources-2x" src="images/default_200_percent/offline/200-offline-sprite.png">
@@ -60,7 +66,170 @@
   </div>
   <script src="game.js"></script>
   <script>
+    // Watch for the slow-speed-option element to be appended and move it into game-footer
+    (function() {
+      var footer = document.getElementById('game-footer');
+      var mobileControls = document.getElementById('mobile-controls');
+      var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1 && node.classList && node.classList.contains('slow-speed-option')) {
+              if (footer && mobileControls) {
+                footer.insertBefore(node, mobileControls);
+              }
+              observer.disconnect();
+            }
+          });
+        });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    })();
+
     Runner.initializeInstance('.interstitial-wrapper');
+
+    // Mobile controls
+    (function() {
+      var trumpAudio = new Audio('sounds/Trump.mp3');
+      trumpAudio.preload = 'auto';
+      var trumpUnlocked = false;
+
+      function unlockTrumpAudio() {
+        if (trumpUnlocked) return;
+        try {
+          trumpAudio.muted = true;
+          var playPromise = trumpAudio.play();
+          if (playPromise && playPromise.then) {
+            playPromise.then(function() {
+              trumpAudio.pause();
+              trumpAudio.currentTime = 0;
+              trumpAudio.muted = false;
+              trumpUnlocked = true;
+            }).catch(function() {
+              trumpAudio.muted = false;
+            });
+          } else {
+            trumpAudio.pause();
+            trumpAudio.currentTime = 0;
+            trumpAudio.muted = false;
+            trumpUnlocked = true;
+          }
+        } catch(e) {
+          trumpAudio.muted = false;
+        }
+      }
+
+      function stopTrump() {
+        try {
+          trumpAudio.pause();
+          trumpAudio.currentTime = 0;
+        } catch(e) {}
+      }
+
+      function playTrump() {
+        stopTrump();
+        try {
+          var playPromise = trumpAudio.play();
+          if (playPromise && playPromise.catch) {
+            playPromise.catch(function() {});
+          }
+        } catch(e) {}
+      }
+
+      // Initialize on first user interaction (unlocks media playback in Safari/iOS).
+      document.addEventListener('keydown', unlockTrumpAudio, { once: true });
+      document.addEventListener('keypress', unlockTrumpAudio, { once: true });
+      document.addEventListener('mousedown', unlockTrumpAudio, { once: true });
+      document.addEventListener('touchstart', unlockTrumpAudio, { once: true, passive: true });
+
+      // Patch the runner instance
+      var runner = Runner.getInstance();
+
+      var origGameOver = runner.gameOver;
+      runner.gameOver = function() {
+        origGameOver.call(this);
+        playTrump();
+      };
+
+      var origRestart = runner.restart;
+      runner.restart = function() {
+        stopTrump();
+        origRestart.call(this);
+      };
+
+      function restartWhenCrashedByKey(e) {
+        if (!isCrashed()) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) {
+          e.stopImmediatePropagation();
+        }
+        stopTrump();
+        runner.restart();
+      }
+
+      // Safari fallback: any key restarts immediately while crashed.
+      document.addEventListener('keydown', restartWhenCrashedByKey, true);
+      document.addEventListener('keypress', restartWhenCrashedByKey, true);
+
+      function isCrashed() {
+        var container = document.querySelector('.runner-container');
+        return container && container.classList.contains('crashed');
+      }
+
+      function fireKey(type, keyCode) {
+        // When crashed, up/down should fire Enter so onKeyUp restarts immediately
+        // (Enter is in runnerKeycodes.restart — no 1200ms delay unlike Space/ArrowUp)
+        var actualCode = (isCrashed() && (keyCode === 38 || keyCode === 40)) ? 13 : keyCode;
+        var key = actualCode === 38 ? 'ArrowUp' : actualCode === 40 ? 'ArrowDown' : actualCode === 13 ? 'Enter' : ' ';
+        var code = actualCode === 38 ? 'ArrowUp' : actualCode === 40 ? 'ArrowDown' : actualCode === 13 ? 'Enter' : 'Space';
+        document.dispatchEvent(new KeyboardEvent(type, {
+          keyCode: actualCode, which: actualCode, key: key, code: code,
+          bubbles: true, cancelable: true
+        }));
+      }
+
+      var btnUp = document.getElementById('btn-up');
+      var btnDown = document.getElementById('btn-down');
+
+      // Up button => jump (or restart when crashed)
+      btnUp.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fireKey('keydown', 38);
+      }, { passive: false });
+      btnUp.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        fireKey('keyup', 38);
+      }, { passive: false });
+      btnUp.addEventListener('mousedown', function() { fireKey('keydown', 38); });
+      btnUp.addEventListener('mouseup', function() { fireKey('keyup', 38); });
+
+      // Down button => duck (or restart when crashed)
+      btnDown.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fireKey('keydown', 40);
+      }, { passive: false });
+      btnDown.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        fireKey('keyup', 40);
+      }, { passive: false });
+      btnDown.addEventListener('mousedown', function() { fireKey('keydown', 40); });
+      btnDown.addEventListener('mouseup', function() { fireKey('keyup', 40); });
+
+      // Tap anywhere (outside the game container, buttons, or slow-speed) => jump
+      document.addEventListener('touchstart', function(e) {
+        var t = e.target;
+        if (t.closest) {
+          if (t.closest('#mobile-controls') ||
+              t.closest('.slow-speed-option') ||
+              t.closest('.runner-container') ||
+              t.closest('.controller')) return;
+        }
+        fireKey('keydown', 32);
+      }, { passive: true });
+    })();
   </script>
 </body>
 </html>
