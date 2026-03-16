@@ -144,9 +144,22 @@
       // Patch the runner instance
       var runner = Runner.getInstance();
 
+      function focusRunnerContainer() {
+        var container = document.querySelector('.runner-container');
+        if (!container || !container.focus) return;
+        try {
+          container.setAttribute('tabindex', '0');
+          container.focus({ preventScroll: true });
+        } catch (e) {
+          try { container.focus(); } catch (err) {}
+        }
+      }
+
       var origGameOver = runner.gameOver;
       runner.gameOver = function() {
         origGameOver.call(this);
+        focusRunnerContainer();
+        setTimeout(focusRunnerContainer, 0);
         playTrump();
       };
 
@@ -171,10 +184,11 @@
       // Safari fallback: any key restarts immediately while crashed.
       document.addEventListener('keydown', restartWhenCrashedByKey, true);
       document.addEventListener('keypress', restartWhenCrashedByKey, true);
+      window.addEventListener('keydown', restartWhenCrashedByKey, true);
+      window.addEventListener('keypress', restartWhenCrashedByKey, true);
 
       function isCrashed() {
-        var container = document.querySelector('.runner-container');
-        return container && container.classList.contains('crashed');
+        return !!(runner && runner.crashed);
       }
 
       function fireKey(type, keyCode) {
