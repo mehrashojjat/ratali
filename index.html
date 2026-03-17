@@ -103,6 +103,7 @@
 
       var isMuted = false;
       var gameplayMusicStarted = false;
+      var speedToggleInitialized = false;
 
       // Patch the runner instance
       var runner = Runner.getInstance();
@@ -151,6 +152,28 @@
           }
         } catch (e) {
           gameplayMusicStarted = false;
+        }
+      }
+
+      function triggerAudioFromControlInteraction() {
+        if (isMuted) return;
+
+        try {
+          if (runner.audioContext && runner.audioContext.state === 'suspended') {
+            runner.audioContext.resume();
+          }
+        } catch (e) {}
+
+        try {
+          if (runner.generatedSoundFx && runner.generatedSoundFx.context &&
+              runner.generatedSoundFx.context.state === 'suspended') {
+            runner.generatedSoundFx.context.resume();
+          }
+        } catch (e) {}
+
+        // This must run directly from the control interaction stack on iOS.
+        if (runner.playing && !runner.crashed) {
+          startGameplayMusic(false);
         }
       }
 
@@ -216,11 +239,14 @@
         }
 
         var speedInput = speedOption.querySelector('input[type="checkbox"]');
-        if (speedInput && !speedInput.checked) {
-          speedInput.checked = true;
-          if (typeof runner.toggleSpeed === 'function') {
-            runner.toggleSpeed();
+        if (speedInput && !speedToggleInitialized) {
+          if (!speedInput.checked) {
+            speedInput.checked = true;
+            if (typeof runner.toggleSpeed === 'function') {
+              runner.toggleSpeed();
+            }
           }
+          speedToggleInitialized = true;
         }
 
         if (speedOption.parentElement !== togglesRow) {
@@ -308,12 +334,16 @@
         e.preventDefault();
         e.stopPropagation();
         fireKey('keydown', 38);
+        triggerAudioFromControlInteraction();
       }, { passive: false });
       btnUp.addEventListener('touchend', function(e) {
         e.preventDefault();
         fireKey('keyup', 38);
       }, { passive: false });
-      btnUp.addEventListener('mousedown', function() { fireKey('keydown', 38); });
+      btnUp.addEventListener('mousedown', function() {
+        fireKey('keydown', 38);
+        triggerAudioFromControlInteraction();
+      });
       btnUp.addEventListener('mouseup', function() { fireKey('keyup', 38); });
 
       // Down button => duck (or restart when crashed)
@@ -321,12 +351,16 @@
         e.preventDefault();
         e.stopPropagation();
         fireKey('keydown', 40);
+        triggerAudioFromControlInteraction();
       }, { passive: false });
       btnDown.addEventListener('touchend', function(e) {
         e.preventDefault();
         fireKey('keyup', 40);
       }, { passive: false });
-      btnDown.addEventListener('mousedown', function() { fireKey('keydown', 40); });
+      btnDown.addEventListener('mousedown', function() {
+        fireKey('keydown', 40);
+        triggerAudioFromControlInteraction();
+      });
       btnDown.addEventListener('mouseup', function() { fireKey('keyup', 40); });
 
       // Tap anywhere (outside the game container, buttons, or slow-speed) => jump
@@ -339,6 +373,7 @@
               t.closest('.controller')) return;
         }
         fireKey('keydown', 32);
+        triggerAudioFromControlInteraction();
       }, { passive: true });
     })();
   </script>
