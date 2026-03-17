@@ -103,6 +103,7 @@
 
       var isMuted = false;
       var gameplayMusicStarted = false;
+      var audioUnlockedByControl = false;
       var speedToggleInitialized = false;
 
       // Patch the runner instance
@@ -157,6 +158,26 @@
 
       function triggerAudioFromControlInteraction() {
         if (isMuted) return;
+
+        // iPhone browsers require a direct user-gesture media call.
+        // Prime playback from the control event stack so first run can play audio.
+        if (!audioUnlockedByControl && !gameplayMusicStarted) {
+          try {
+            var primePlayPromise = trumpAudio.play();
+            if (primePlayPromise && primePlayPromise.then) {
+              primePlayPromise.then(function() {
+                audioUnlockedByControl = true;
+                if (!runner.playing || runner.crashed) {
+                  trumpAudio.pause();
+                  trumpAudio.currentTime = 0;
+                  gameplayMusicStarted = false;
+                } else {
+                  gameplayMusicStarted = true;
+                }
+              }).catch(function() {});
+            }
+          } catch (e) {}
+        }
 
         try {
           if (runner.audioContext && runner.audioContext.state === 'suspended') {
@@ -333,16 +354,16 @@
       btnUp.addEventListener('touchstart', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        fireKey('keydown', 38);
         triggerAudioFromControlInteraction();
+        fireKey('keydown', 38);
       }, { passive: false });
       btnUp.addEventListener('touchend', function(e) {
         e.preventDefault();
         fireKey('keyup', 38);
       }, { passive: false });
       btnUp.addEventListener('mousedown', function() {
-        fireKey('keydown', 38);
         triggerAudioFromControlInteraction();
+        fireKey('keydown', 38);
       });
       btnUp.addEventListener('mouseup', function() { fireKey('keyup', 38); });
 
@@ -350,16 +371,16 @@
       btnDown.addEventListener('touchstart', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        fireKey('keydown', 40);
         triggerAudioFromControlInteraction();
+        fireKey('keydown', 40);
       }, { passive: false });
       btnDown.addEventListener('touchend', function(e) {
         e.preventDefault();
         fireKey('keyup', 40);
       }, { passive: false });
       btnDown.addEventListener('mousedown', function() {
-        fireKey('keydown', 40);
         triggerAudioFromControlInteraction();
+        fireKey('keydown', 40);
       });
       btnDown.addEventListener('mouseup', function() { fireKey('keyup', 40); });
 
@@ -372,8 +393,8 @@
               t.closest('.runner-container') ||
               t.closest('.controller')) return;
         }
-        fireKey('keydown', 32);
         triggerAudioFromControlInteraction();
+        fireKey('keydown', 32);
       }, { passive: true });
     })();
   </script>
