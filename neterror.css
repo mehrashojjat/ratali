@@ -445,6 +445,13 @@ html[dir='rtl'].offline .icon-offline {
   width: 100%;
 }
 
+#footer-toggles {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .mobile-btn {
   width: 88px;
   height: 88px;
@@ -487,6 +494,10 @@ html[dir='rtl'].offline .icon-offline {
   position: relative;
   width: max-content;
   white-space: nowrap;
+}
+
+#game-footer .slow-speed-option {
+  margin: 10px 6px;
 }
 
 .slow-speed-option.hidden {

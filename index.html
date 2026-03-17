@@ -59,8 +59,8 @@
   </div>
   <div id="game-footer">
     <div id="mobile-controls">
-      <button id="btn-down" class="mobile-btn" aria-label="Duck">⬇️</button>
-      <button id="btn-up" class="mobile-btn" aria-label="Jump">⬆️</button>
+      <button id="btn-down" class="mobile-btn" aria-label="Duck">⬇</button>
+      <button id="btn-up" class="mobile-btn" aria-label="Jump">⬆</button>
     </div>
   </div>
   <div id="offline-resources">
@@ -95,62 +95,79 @@
 
     Runner.initializeInstance('.interstitial-wrapper');
 
-    // Mobile controls
+    // Mobile controls + custom music/mute behavior
     (function() {
       var trumpAudio = new Audio('sounds/Trump.mp3');
       trumpAudio.preload = 'auto';
-      var trumpUnlocked = false;
+      trumpAudio.loop = true;
 
-      function unlockTrumpAudio() {
-        if (trumpUnlocked) return;
-        try {
-          trumpAudio.muted = true;
-          var playPromise = trumpAudio.play();
-          if (playPromise && playPromise.then) {
-            playPromise.then(function() {
-              trumpAudio.pause();
-              trumpAudio.currentTime = 0;
-              trumpAudio.muted = false;
-              trumpUnlocked = true;
-            }).catch(function() {
-              trumpAudio.muted = false;
-            });
-          } else {
-            trumpAudio.pause();
-            trumpAudio.currentTime = 0;
-            trumpAudio.muted = false;
-            trumpUnlocked = true;
-          }
-        } catch(e) {
-          trumpAudio.muted = false;
-        }
-      }
-
-      function stopTrump() {
-        try {
-          trumpAudio.pause();
-          trumpAudio.currentTime = 0;
-        } catch(e) {}
-      }
-
-      function playTrump() {
-        stopTrump();
-        try {
-          var playPromise = trumpAudio.play();
-          if (playPromise && playPromise.catch) {
-            playPromise.catch(function() {});
-          }
-        } catch(e) {}
-      }
-
-      // Initialize on first user interaction (unlocks media playback in Safari/iOS).
-      document.addEventListener('keydown', unlockTrumpAudio, { once: true });
-      document.addEventListener('keypress', unlockTrumpAudio, { once: true });
-      document.addEventListener('mousedown', unlockTrumpAudio, { once: true });
-      document.addEventListener('touchstart', unlockTrumpAudio, { once: true, passive: true });
+      var isMuted = false;
+      var gameplayMusicStarted = false;
 
       // Patch the runner instance
       var runner = Runner.getInstance();
+
+      // Global mute flag consumed by generated sound effects.
+      window.__rataliMuted = false;
+
+      if (typeof GeneratedSoundFx !== 'undefined' &&
+          GeneratedSoundFx.prototype &&
+          !GeneratedSoundFx.prototype.__rataliMuteWrapped) {
+        var originalPlayNote = GeneratedSoundFx.prototype.playNote;
+        GeneratedSoundFx.prototype.playNote = function() {
+          if (window.__rataliMuted) return;
+          return originalPlayNote.apply(this, arguments);
+        };
+        GeneratedSoundFx.prototype.__rataliMuteWrapped = true;
+      }
+
+      var originalRunnerPlaySound = runner.playSound.bind(runner);
+      runner.playSound = function(soundBuffer) {
+        if (isMuted) return;
+        return originalRunnerPlaySound(soundBuffer);
+      };
+
+      function stopGameplayMusic() {
+        try {
+          trumpAudio.pause();
+          trumpAudio.currentTime = 0;
+        } catch (e) {}
+        gameplayMusicStarted = false;
+      }
+
+      function startGameplayMusic(restartPlayback) {
+        if (isMuted) return;
+        if (restartPlayback) {
+          stopGameplayMusic();
+        }
+        if (gameplayMusicStarted) return;
+        try {
+          var playPromise = trumpAudio.play();
+          gameplayMusicStarted = true;
+          if (playPromise && playPromise.catch) {
+            playPromise.catch(function() {
+              gameplayMusicStarted = false;
+            });
+          }
+        } catch (e) {
+          gameplayMusicStarted = false;
+        }
+      }
+
+      function setMuted(nextMuted) {
+        isMuted = !!nextMuted;
+        window.__rataliMuted = isMuted;
+        trumpAudio.muted = isMuted;
+
+        if (isMuted) {
+          stopGameplayMusic();
+          if (runner.generatedSoundFx && runner.generatedSoundFx.stopAll) {
+            runner.generatedSoundFx.stopAll();
+          }
+        } else if (runner.playing && !runner.crashed) {
+          startGameplayMusic(false);
+        }
+      }
 
       function focusRunnerContainer() {
         var container = document.querySelector('.runner-container');
@@ -168,14 +185,87 @@
         origGameOver.call(this);
         focusRunnerContainer();
         setTimeout(focusRunnerContainer, 0);
-        playTrump();
+        stopGameplayMusic();
+      };
+
+      var origStartGame = runner.startGame;
+      runner.startGame = function() {
+        origStartGame.call(this);
+        startGameplayMusic(false);
       };
 
       var origRestart = runner.restart;
       runner.restart = function() {
-        stopTrump();
         origRestart.call(this);
+        startGameplayMusic(true);
       };
+
+      function ensureAudioAndSpeedToggles() {
+        var speedOption = document.querySelector('.slow-speed-option');
+        if (!speedOption) return;
+
+        var footer = document.getElementById('game-footer');
+        var mobileControls = document.getElementById('mobile-controls');
+        if (!footer || !mobileControls) return;
+
+        var togglesRow = document.getElementById('footer-toggles');
+        if (!togglesRow) {
+          togglesRow = document.createElement('div');
+          togglesRow.id = 'footer-toggles';
+          footer.insertBefore(togglesRow, mobileControls);
+        }
+
+        var speedInput = speedOption.querySelector('input[type="checkbox"]');
+        if (speedInput && !speedInput.checked) {
+          speedInput.checked = true;
+          if (typeof runner.toggleSpeed === 'function') {
+            runner.toggleSpeed();
+          }
+        }
+
+        if (speedOption.parentElement !== togglesRow) {
+          togglesRow.appendChild(speedOption);
+        }
+
+        if (document.getElementById('mute-toggle-option')) {
+          var existingMute = document.getElementById('mute-toggle-option');
+          if (existingMute && existingMute.parentElement !== togglesRow) {
+            togglesRow.appendChild(existingMute);
+          }
+          return;
+        }
+
+        var muteLabel = document.createElement('label');
+        muteLabel.id = 'mute-toggle-option';
+        muteLabel.className = 'slow-speed-option mute-option';
+        muteLabel.textContent = 'Mute';
+
+        var muteCheckbox = document.createElement('input');
+        muteCheckbox.setAttribute('type', 'checkbox');
+        muteCheckbox.setAttribute('title', 'Mute all sounds');
+        muteCheckbox.setAttribute('aria-label', 'Mute all sounds');
+        muteCheckbox.setAttribute('tabindex', '0');
+        muteCheckbox.checked = false;
+
+        var muteToggle = document.createElement('span');
+        muteToggle.className = 'slow-speed-toggle';
+
+        muteLabel.appendChild(muteCheckbox);
+        muteLabel.appendChild(muteToggle);
+
+        muteCheckbox.addEventListener('change', function() {
+          setMuted(muteCheckbox.checked);
+        });
+
+        togglesRow.appendChild(muteLabel);
+      }
+
+      var controlsObserver = new MutationObserver(function() {
+        ensureAudioAndSpeedToggles();
+      });
+      controlsObserver.observe(document.body, { childList: true, subtree: true });
+      ensureAudioAndSpeedToggles();
+      setMuted(false);
 
       function restartWhenCrashedByKey(e) {
         if (!isCrashed()) return;
@@ -185,7 +275,6 @@
         if (e.stopImmediatePropagation) {
           e.stopImmediatePropagation();
         }
-        stopTrump();
         runner.restart();
       }
 
